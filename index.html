@@ -1,13 +1,3 @@
-
-AI Overview
-Report card app tracks five behavioral items using a 3-tier rating scale, with setup for Google Sheets sync via a provided Web App URL.
-
-Gemini
-Ask about your files
-Summarize this folder
-Analyze each file in this folder
-What can Gemini do with folders in Google Drive
-Gemini in Workspace can make mistakes. Learn more
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -282,58 +272,60 @@ let data = {};
 let audioCtx = null;
 
 // Sound effects — unlock audio on first touch (required by mobile browsers)
+// Returns a Promise that resolves when the context is ready
 function ensureAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  // resume() always returns a Promise (even if already running)
+  return audioCtx.resume();
 }
-document.addEventListener('touchstart', ensureAudio, { once: true });
-document.addEventListener('click', ensureAudio, { once: true });
 
 function playSound(type) {
-  ensureAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  gain.gain.value = 0.15;
-
-  if (type === 'great') {
-    osc.frequency.value = 880; osc.type = 'sine';
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
-    const osc2 = audioCtx.createOscillator();
-    const gain2 = audioCtx.createGain();
-    osc2.connect(gain2); gain2.connect(audioCtx.destination);
-    osc2.frequency.value = 1174; osc2.type = 'sine';
-    gain2.gain.setValueAtTime(0.15, audioCtx.currentTime + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-    osc2.start(audioCtx.currentTime + 0.1); osc2.stop(audioCtx.currentTime + 0.3);
-  } else if (type === 'okay') {
-    osc.frequency.value = 523; osc.type = 'triangle';
-    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-  } else {
-    osc.frequency.value = 330; osc.type = 'sine';
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
-  }
-}
-
-function playSaveSound() {
-  ensureAudio();
-  [523, 659, 784].forEach((freq, i) => {
+  ensureAudio().then(() => {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.value = freq; osc.type = 'sine';
-    const t = audioCtx.currentTime + i * 0.12;
-    gain.gain.setValueAtTime(0.12, t);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-    osc.start(t); osc.stop(t + 0.2);
+    gain.gain.value = 0.15;
+
+    if (type === 'great') {
+      osc.frequency.value = 880; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.connect(gain2); gain2.connect(audioCtx.destination);
+      osc2.frequency.value = 1174; osc2.type = 'sine';
+      gain2.gain.setValueAtTime(0.15, audioCtx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc2.start(audioCtx.currentTime + 0.1); osc2.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'okay') {
+      osc.frequency.value = 523; osc.type = 'triangle';
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    } else {
+      osc.frequency.value = 330; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    }
+  });
+}
+
+function playSaveSound() {
+  ensureAudio().then(() => {
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
+      const t = audioCtx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+      osc.start(t); osc.stop(t + 0.2);
+    });
   });
 }
 
@@ -502,32 +494,20 @@ function entryToRow(e) {
 }
 
 function sendToSheets(payload, callback) {
-  // Use a hidden iframe + form to bypass CORS (file:// can't do fetch to external)
-  var iframe = document.createElement('iframe');
-  iframe.name = 'sheets_sync_' + Date.now();
-  iframe.style.display = 'none';
-  document.body.appendChild(iframe);
+  // Use fetch with no-cors so it works from HTTPS (GitHub Pages) without CORS errors
+  const formData = new FormData();
+  formData.append('payload', JSON.stringify(payload));
 
-  var form = document.createElement('form');
-  form.method = 'POST';
-  form.action = SHEETS_WEBAPP_URL;
-  form.target = iframe.name;
-
-  var input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'payload';
-  input.value = JSON.stringify(payload);
-  form.appendChild(input);
-
-  document.body.appendChild(form);
-  form.submit();
-
-  // Clean up after a delay
-  setTimeout(() => {
-    document.body.removeChild(form);
-    document.body.removeChild(iframe);
+  fetch(SHEETS_WEBAPP_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: formData
+  }).then(() => {
     if (callback) callback();
-  }, 3000);
+  }).catch(err => {
+    console.warn('Sheets sync error:', err);
+    if (callback) callback();
+  });
 }
 
 function syncEntryToSheets(entry) {
@@ -645,6 +625,3 @@ init();
 </script>
 </body>
 </html>
-Gemini
-Gemini in Drive doesn't support HTML files
-Gemini in Workspace can make mistakes. Learn more
