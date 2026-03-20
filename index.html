@@ -83,23 +83,6 @@ header p { font-size: 13px; color: #666; margin-top: 4px; }
 .grid-btn.needs-work { border-color: #fecaca; }
 .grid-btn.needs-work.selected { background: #fee2e2; border-color: #ef4444; transform: scale(1.1); }
 
-/* Tap pop animation */
-@keyframes popBounce {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.35); }
-  60% { transform: scale(0.95); }
-  100% { transform: scale(1.1); }
-}
-.grid-btn.pop { animation: popBounce 0.3s ease-out; }
-
-/* Save button flash */
-@keyframes saveFlash {
-  0% { background: #2563eb; }
-  50% { background: #22c55e; }
-  100% { background: #2563eb; }
-}
-.save-btn.flash { animation: saveFlash 0.4s ease; }
-
 /* Daily score */
 .daily-score {
   background: #fff; border-radius: 12px; padding: 14px 16px;
@@ -413,22 +396,14 @@ function renderGrid() {
 function selectRating(itemIndex, rating) {
   const buttons = document.querySelectorAll(`.grid-btn[data-item="${itemIndex}"]`);
   let toggled = false;
-  let selectedBtn = null;
   buttons.forEach(b => {
     if (b.dataset.rating === rating && !b.classList.contains('selected')) {
-      b.classList.add('selected'); toggled = true; selectedBtn = b;
+      b.classList.add('selected'); toggled = true;
     } else {
       b.classList.remove('selected');
     }
   });
-  if (toggled) {
-    playSound(rating);
-    if (selectedBtn) {
-      selectedBtn.classList.remove('pop');
-      void selectedBtn.offsetWidth;
-      selectedBtn.classList.add('pop');
-    }
-  }
+  if (toggled) playSound(rating);
   updateScore();
 }
 
@@ -484,10 +459,6 @@ function saveEntry() {
   data[key] = { ratings, highlight, date: key, score };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   playSaveSound();
-  var saveBtn = document.querySelector('.save-btn');
-  saveBtn.classList.remove('flash');
-  void saveBtn.offsetWidth;
-  saveBtn.classList.add('flash');
   showMsg('Saved!', 'success');
 
   // Auto-sync to Sheets if configured
