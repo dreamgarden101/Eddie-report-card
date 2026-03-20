@@ -1,3 +1,13 @@
+
+AI Overview
+Report card app HTML/JS code, setup instructions for Google Sheets sync, and final tracking items for Eddie.
+
+Gemini
+Ask about your files
+Summarize this folder
+Analyze each file in this folder
+What can Gemini do with folders in Google Drive
+Gemini in Workspace can make mistakes. Learn more
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,6 +92,23 @@ header p { font-size: 13px; color: #666; margin-top: 4px; }
 .grid-btn.okay.selected { background: #fef9c3; border-color: #eab308; transform: scale(1.1); }
 .grid-btn.needs-work { border-color: #fecaca; }
 .grid-btn.needs-work.selected { background: #fee2e2; border-color: #ef4444; transform: scale(1.1); }
+
+/* Tap pop animation */
+@keyframes popBounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.35); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1.1); }
+}
+.grid-btn.pop { animation: popBounce 0.3s ease-out; }
+
+/* Save button flash */
+@keyframes saveFlash {
+  0% { background: #2563eb; }
+  50% { background: #22c55e; }
+  100% { background: #2563eb; }
+}
+.save-btn.flash { animation: saveFlash 0.4s ease; }
 
 /* Daily score */
 .daily-score {
@@ -269,54 +296,74 @@ const SHEETS_WEBAPP_URL = 'https://script.google.com/a/macros/meta.com/s/AKfycbx
 
 let currentDate = new Date();
 let data = {};
-let audioCtx = null;
-
-// Sound effects — mobile-friendly using pre-decoded audio buffers
-function unlockAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  // Play a silent buffer to unlock audio on iOS
-  var buf = audioCtx.createBuffer(1, 1, 22050);
-  var src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  src.connect(audioCtx.destination);
-  src.start(0);
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+// Sound effects — using WAV data URIs for maximum mobile compatibility
+function generateWav(frequencies, duration, volume) {
+  var sampleRate = 22050;
+  var numSamples = Math.floor(sampleRate * duration);
+  var samples = new Float32Array(numSamples);
+  for (var i = 0; i < numSamples; i++) {
+    var t = i / sampleRate;
+    var envelope = Math.max(0, 1 - t / duration);
+    var val = 0;
+    for (var f = 0; f < frequencies.length; f++) {
+      val += Math.sin(2 * Math.PI * frequencies[f] * t);
+    }
+    samples[i] = val / frequencies.length * envelope * (volume || 0.3);
+  }
+  // Build WAV
+  var numChannels = 1;
+  var bytesPerSample = 2;
+  var dataSize = numSamples * numChannels * bytesPerSample;
+  var buffer = new ArrayBuffer(44 + dataSize);
+  var view = new DataView(buffer);
+  function writeStr(offset, str) { for (var i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  for (var i = 0; i < numSamples; i++) {
+    var s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, s * 32767, true);
+  }
+  var blob = new Blob([buffer], { type: 'audio/wav' });
+  return URL.createObjectURL(blob);
 }
-document.addEventListener('touchstart', unlockAudio, { once: true });
-document.addEventListener('touchend', unlockAudio, { once: true });
-document.addEventListener('click', unlockAudio, { once: true });
 
-function tone(freq, duration, type, vol, delay) {
-  if (!audioCtx) unlockAudio();
-  if (!audioCtx) return;
-  var t = audioCtx.currentTime + (delay || 0);
-  var osc = audioCtx.createOscillator();
-  var g = audioCtx.createGain();
-  osc.connect(g); g.connect(audioCtx.destination);
-  osc.type = type || 'sine';
-  osc.frequency.value = freq;
-  g.gain.setValueAtTime(vol || 0.12, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + duration);
-  osc.start(t);
-  osc.stop(t + duration);
+// Pre-generate sounds
+var soundGood = generateWav([880, 1174], 0.25, 0.3);
+var soundOkay = generateWav([523], 0.15, 0.25);
+var soundWork = generateWav([330], 0.2, 0.2);
+var soundSave = generateWav([523, 659, 784], 0.35, 0.25);
+
+function vibrate(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
 function playSound(type) {
-  if (type === 'great') {
-    tone(880, 0.2, 'sine', 0.15);
-    tone(1174, 0.2, 'sine', 0.15, 0.1);
-  } else if (type === 'okay') {
-    tone(523, 0.15, 'triangle', 0.12);
-  } else {
-    tone(330, 0.2, 'sine', 0.1);
-  }
+  var url = type === 'great' ? soundGood : type === 'okay' ? soundOkay : soundWork;
+  var a = new Audio(url);
+  a.volume = 0.5;
+  a.play().catch(function(){});
+  // Haptic feedback — works in silent mode
+  if (type === 'great') vibrate([40, 30, 40]);
+  else if (type === 'okay') vibrate(30);
+  else vibrate(50);
 }
 
 function playSaveSound() {
-  tone(523, 0.2, 'sine', 0.12, 0);
-  tone(659, 0.2, 'sine', 0.12, 0.12);
-  tone(784, 0.2, 'sine', 0.12, 0.24);
+  var a = new Audio(soundSave);
+  a.volume = 0.5;
+  a.play().catch(function(){});
+  vibrate([30, 20, 30, 20, 50]);
 }
 
 function init() {
@@ -376,14 +423,22 @@ function renderGrid() {
 function selectRating(itemIndex, rating) {
   const buttons = document.querySelectorAll(`.grid-btn[data-item="${itemIndex}"]`);
   let toggled = false;
+  let selectedBtn = null;
   buttons.forEach(b => {
     if (b.dataset.rating === rating && !b.classList.contains('selected')) {
-      b.classList.add('selected'); toggled = true;
+      b.classList.add('selected'); toggled = true; selectedBtn = b;
     } else {
       b.classList.remove('selected');
     }
   });
-  if (toggled) playSound(rating);
+  if (toggled) {
+    playSound(rating);
+    if (selectedBtn) {
+      selectedBtn.classList.remove('pop');
+      void selectedBtn.offsetWidth;
+      selectedBtn.classList.add('pop');
+    }
+  }
   updateScore();
 }
 
@@ -439,6 +494,10 @@ function saveEntry() {
   data[key] = { ratings, highlight, date: key, score };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   playSaveSound();
+  var saveBtn = document.querySelector('.save-btn');
+  saveBtn.classList.remove('flash');
+  void saveBtn.offsetWidth;
+  saveBtn.classList.add('flash');
   showMsg('Saved!', 'success');
 
   // Auto-sync to Sheets if configured
@@ -615,3 +674,6 @@ init();
 </script>
 </body>
 </html>
+Gemini
+Gemini in Drive doesn't support HTML files
+Gemini in Workspace can make mistakes. Learn more
