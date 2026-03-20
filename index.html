@@ -1,3 +1,13 @@
+
+AI Overview
+Report card app tracks five behavioral items using a 3-tier rating scale, with setup for Google Sheets sync via a provided Web App URL.
+
+Gemini
+Ask about your files
+Summarize this folder
+Analyze each file in this folder
+What can Gemini do with folders in Google Drive
+Gemini in Workspace can make mistakes. Learn more
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -271,9 +281,18 @@ let currentDate = new Date();
 let data = {};
 let audioCtx = null;
 
-// Sound effects
+// Sound effects — unlock audio on first touch (required by mobile browsers)
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('touchstart', ensureAudio, { once: true });
+document.addEventListener('click', ensureAudio, { once: true });
+
 function playSound(type) {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  ensureAudio();
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.connect(gain); gain.connect(audioCtx.destination);
@@ -305,7 +324,7 @@ function playSound(type) {
 }
 
 function playSaveSound() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  ensureAudio();
   [523, 659, 784].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -626,3 +645,6 @@ init();
 </script>
 </body>
 </html>
+Gemini
+Gemini in Drive doesn't support HTML files
+Gemini in Workspace can make mistakes. Learn more
